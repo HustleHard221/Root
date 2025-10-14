@@ -1,0 +1,31 @@
+package Config_DataBase;
+import java.util.List;
+import java.util.ArrayList;
+public class Record {
+	private List <String> valeurs;
+	
+	public Record(List<String> valeurs) {
+		this.valeurs=valeurs;
+	}
+	
+	public Record() {
+		this(new ArrayList<String>());
+	}
+	
+	public List<String> getValeurs(){
+		return valeurs;
+	}
+	
+	public void addValue(String v) {
+		valeurs.add(v);
+	}
+	
+	public String getValues() {
+		StringBuffer sb= new StringBuffer();
+		for(String s : valeurs) {
+			sb.append(s+"	");
+		}
+		return sb.toString();
+	}
+
+}
