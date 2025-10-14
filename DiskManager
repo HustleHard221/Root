@@ -1,0 +1,98 @@
+package Config_DataBase;
+
+	import java.io.IOException;
+	import java.io.File;
+	import java.io.RandomAccessFile;
+	import java.util.LinkedList;
+	import java.util.Queue;
+
+
+	public class DiskManager {
+	   DbConfig dbConfig;
+	   private Queue<PageId> freePages;
+
+
+	   public DiskManager(DbConfig dbConfig) {
+	       this.dbConfig = dbConfig;
+	       freePages = new LinkedList<>();
+	       Init();
+	   }
+
+
+	   public void Init() {
+	       File binDataDir = new File(dbConfig.getDbpath());
+	       if (!binDataDir.exists()) {
+	           boolean created = binDataDir.mkdirs();
+	           if (!created) {
+	               throw new RuntimeException("Impossible de créer le dossier BinData : " + dbConfig.getDbpath());
+	           }
+	       }
+	   }
+
+
+	   public PageId allocPage() {
+	       if(!freePages.isEmpty()) {
+	           return freePages.poll();
+	       }
+	       else{
+	           for(int i=0;i<dbConfig.getDm_maxfilecount();i++) {
+	               File f = new File(dbConfig.getDbpath(),"Data"+i+".bin");
+	               try {
+	                   RandomAccessFile raf = new RandomAccessFile(f, "rw");
+	                   int pageIdx = ((int)raf.length()/dbConfig.getPageSize());
+	                   raf.setLength(raf.length()+dbConfig.getPageSize());
+	                   raf.close();
+	                   return new PageId(i, pageIdx);
+	               } catch (IOException e) {
+	                   throw new RuntimeException("Erreur lors de l'allocation dans " + f.getName(), e);
+	               }
+	           }
+	           throw new RuntimeException("Plus de place disponible dans les fichiers Data !");
+	       }
+	   }
+
+
+	   public void DeallocPage(PageId pageId) {
+	       freePages.add(pageId);
+	   }
+
+
+	   public void writePage(PageId pageId, byte[] buffer) {
+	       if (buffer.length != dbConfig.getPageSize()) {
+	           throw new IllegalArgumentException("Buffer doit être de taille pagesize");
+	       }
+	       File f = new File(dbConfig.getDbpath(),"Data"+pageId.getFileIdx()+".bin");
+	       try{
+	           RandomAccessFile raf = new RandomAccessFile(f,"w");
+	           raf.seek(pageId.getPageIdx()*(long) dbConfig.getPageSize());
+	           raf.write(buffer);
+	           raf.close();
+	       } catch (IOException e) {
+	           throw new RuntimeException("Erreur écriture page : " + pageId, e);
+	       }
+	   }
+
+
+	   public void readPage(PageId pageId, byte[] buffer) {
+	       if (buffer.length != dbConfig.getPageSize()) {
+	           throw new IllegalArgumentException("Buffer doit être de taille pagesize");
+	       }
+	       File f = new File(dbConfig.getDbpath(),"Data"+pageId.getFileIdx()+".bin");
+	       try{
+	           RandomAccessFile raf = new RandomAccessFile(f,"r");
+	           raf.seek(pageId.getPageIdx()*(long) dbConfig.getPageSize());
+	           raf.read(buffer);
+	           raf.close();
+
+
+	       } catch(IOException e){
+	           throw new RuntimeException("Erreur lecture de page : " + pageId, e);
+	       }
+	   }
+
+
+	   public void finish(){
+
+
+	   }
+	}
