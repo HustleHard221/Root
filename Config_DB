@@ -1,45 +1,85 @@
 package Config_DataBase;
 
-import java.io.BufferedReader;
 import java.io.FileReader;
+import java.io.BufferedReader;
 import java.io.IOException;
 
-public class DBConfig {
-	private String dbpath;
-	
-	public DBConfig(String dbpath) {
-		this.dbpath=dbpath;
-	}
-	
-    public static DBConfig loadDBConfig(String fichierConfig) throws IOException {
-        BufferedReader reader = null;
-        String dbpath = null;
-        
-        try {
-            reader = new BufferedReader(new FileReader(fichierConfig));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                if (line.startsWith("dbpath")) {
-                    dbpath = line.split("=")[1].trim().replace("'", "").replace("\"", "");
-                    break;
-                }
-            }
-            
-            if (dbpath == null) {
-                throw new IllegalArgumentException("Le fichier de configuration ne contient pas de dbpath.");
-            }
-        } finally {
-            if (reader != null) {
-                reader.close();
-            }
-        }
-        
-        return new DBConfig(dbpath);
-    }
-    
-    public String toString() {
-    	return "Path : {"+this.dbpath+"}";
-    }
 
+public class DbConfig {
+   private String dbpath;
+   private int pageSize,dm_maxfilecount,bm_buffercount;
+   private String bm_bufferpolicy;
+
+
+   public  DbConfig(String dbpath,int pageSize,int dm_maxfilecount,int bm_buffercount,String bm_bufferpolicy) {
+       this.dbpath = dbpath;
+       this.pageSize = pageSize;
+       this.dm_maxfilecount = dm_maxfilecount;
+       this.bm_buffercount=bm_buffercount;
+       this.bm_bufferpolicy=bm_bufferpolicy;
+   }
+
+
+   public static DbConfig getDbConfig(String file) {
+       String chemin=file;
+       int pagesize=4096;
+       int dm_maxfilecount=5, bm_buffercount=1;
+       String dbpath=null,bm_bufferpolicy="LRU";
+       try (BufferedReader reader = new BufferedReader(new FileReader(chemin))) {
+           String line;
+           while ((line = reader.readLine()) != null) {
+               line = line.trim();
+               if (line.startsWith("dbpath=")) {
+                   dbpath = line.split("=")[1].trim();
+               } else if (line.startsWith("pagesize=")) {
+                   pagesize = Integer.parseInt(line.split("=")[1].trim());
+               } else if (line.startsWith("dm_maxfilecount=")) {
+                   dm_maxfilecount = Integer.parseInt(line.split("=")[1].trim());
+               }else if(line.startsWith("bm_buffercount")) {
+            	   bm_buffercount = Integer.parseInt(line.split("=")[1].trim());
+               }else if(line.startsWith("bm_policy")) {
+            	   bm_bufferpolicy=line.split("=")[1].trim();
+               }
+           }
+       } catch (IOException e) {
+           System.out.println("Erreur de lecture du fichier config : " + e.getMessage());
+           return null;
+       }
+
+
+       if (dbpath == null) {
+           System.out.println("dbpath non trouvé dans le fichier config !");
+           return null;
+       }
+
+
+       return new DbConfig(dbpath, pagesize, dm_maxfilecount,bm_buffercount,bm_bufferpolicy);
+   }
+
+
+   public int getPageSize() {
+       return pageSize;
+   }
+
+
+   public int getDm_maxfilecount() {
+       return dm_maxfilecount;
+   }
+
+
+   public String getDbpath() {
+       return dbpath;
+   }
+   
+   public int getBuffNumber() {
+	   return bm_buffercount;
+   }
+   
+   public String getPolitic() {
+	   return bm_bufferpolicy;
+   }
+   
+   public void setBmPolicy(String newPolicy) {
+	   bm_bufferpolicy=newPolicy;
+   }
 }
