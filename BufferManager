@@ -1,0 +1,159 @@
+package Config_DataBase;
+import java.util.HashMap;                
+import java.util.Map;
+
+public class BufferManager {
+	private DbConfig dbconfig;
+	private DiskManager diskmanager;
+	private int bufferCount;
+	String bufferPolicy;
+	
+	private HashMap<PageId, BufferFrame> listeBuffers;
+    private class BufferFrame {
+        PageId pageId;
+        byte[] data;
+        boolean dirty;
+        int pinCount;
+        long lastUsedTime;
+
+        BufferFrame(int pageSize) {
+            this.data = new byte[pageSize];
+            this.pageId = null;
+            this.dirty = false;
+            this.pinCount = 0;
+            this.lastUsedTime = 0;
+        }
+        
+        public byte[] getContent() {
+        	return data;
+        }
+        
+        public int getPinCount() {
+        	return pinCount;
+        }
+        
+        public long getLastUsedTime() {
+        	return lastUsedTime;
+        }
+        
+        public void setPinCount(int pin) {
+        	pinCount=pin;
+        }
+        
+        public void setLastUsedTime(long t) {
+        	lastUsedTime=t;
+        }
+        
+        public boolean getDirty() {
+        	return dirty;
+        }
+        
+        public void setDirty(boolean dirty) {
+        	this.dirty=dirty;
+        }
+    }
+
+	public BufferManager( DbConfig dbconfig,DiskManager diskmanager,int bufferCount) {
+		this.dbconfig=dbconfig;
+		this.diskmanager=diskmanager;
+		this.bufferCount=bufferCount;
+		listeBuffers = new HashMap<PageId, BufferFrame>(dbconfig.getDm_maxfilecount());
+		bufferPolicy=this.getConfig().getPolitic();
+		}
+	
+	private PageId choosePageToReplace() {
+	    PageId victim = null;
+	    long oldestTime = Long.MAX_VALUE;
+	    long recentTime=Long.MIN_VALUE;
+	    if(this.getConfig().getPolitic().equals("MRU")) {
+	    	for (Map.Entry<PageId, BufferFrame> entry : listeBuffers.entrySet()) {
+	    		BufferFrame frame = entry.getValue();
+	    		if (frame.getPinCount() == 0 && frame.getLastUsedTime() > recentTime) {
+	    			recentTime = frame.getLastUsedTime();
+	    			victim = entry.getKey();
+	    		}
+	    	}
+	    }else if(this.getConfig().getPolitic().equals("LRU")) {
+	    	for (Map.Entry<PageId, BufferFrame> entry : listeBuffers.entrySet()) {
+	    		BufferFrame frame = entry.getValue();
+	    		if (frame.getLastUsedTime() < oldestTime&&frame.getPinCount()<=0) {
+	    			oldestTime = frame.getLastUsedTime();
+	    			victim = entry.getKey();
+	    		}
+	    	}
+	    }
+
+	    if (victim== null) {
+	        throw new RuntimeException("Aucune page disponible pour remplacement");
+	    }
+
+	    return victim;
+	}
+	
+	public BufferFrame getPage(PageId pageId) {
+		if(listeBuffers.containsKey(pageId)) {
+			BufferFrame buff = listeBuffers.get(pageId);
+	        buff.setPinCount(buff.getPinCount() + 1);
+	        buff.setLastUsedTime(System.currentTimeMillis());
+			return buff;
+		}else if(this.bufferCount>listeBuffers.size()){
+			BufferFrame buff = new BufferFrame(this.getConfig().getPageSize());
+	        buff.setPinCount(buff.getPinCount() + 1);
+	        buff.setLastUsedTime(System.currentTimeMillis());
+			this.getDM().readPage(pageId, buff.getContent());
+			this.listeBuffers.put(pageId, buff);
+			return buff;
+		}else {
+			PageId victim = this.choosePageToReplace();
+			this.removePage(victim);
+			BufferFrame buff = new BufferFrame(this.getConfig().getPageSize());
+			this.getDM().readPage(pageId, buff.getContent());
+			this.listeBuffers.put(pageId, buff);
+	        buff.setPinCount(1);
+	        buff.setLastUsedTime(System.currentTimeMillis());
+			return buff;
+		}
+	}
+	
+	public void removePage(PageId page) {
+		BufferFrame buff = listeBuffers.get(page);
+		if(buff.getDirty()) {
+			this.getDM().writePage(page, buff.getContent());
+		}
+		listeBuffers.remove(page);
+	}
+	
+	public void freePage(PageId page, boolean validirty) {
+		if(!listeBuffers.containsKey(page)) {
+			System.out.println("VOUS LIBEREZ UNE PAGE NON CHARGEE !!");
+		}else {
+			listeBuffers.get(page).setPinCount(listeBuffers.get(page).getPinCount()-1);
+			listeBuffers.get(page).setDirty(validirty);
+		}
+	}
+	
+	public void flushBufferFrames() {
+		for (Map.Entry<PageId, BufferFrame> entry : listeBuffers.entrySet()) {
+			BufferFrame bf = entry.getValue();
+			if(bf.getDirty()) {
+				this.getDM().writePage(entry.getKey(), bf.getContent());
+				bf.setDirty(false);
+			}
+	        bf.setPinCount(0);
+	        bf.setLastUsedTime(0);
+	        bf.data = new byte[this.getConfig().getPageSize()];
+		}
+	}
+	
+	public DiskManager getDM() {
+		return diskmanager;
+	}
+	
+	public DbConfig getConfig() {
+		return dbconfig;
+	}
+	
+	public void SetCurrentReplacementPolicy (String policy) {
+		this.bufferPolicy=policy;
+	}
+}
