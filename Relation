@@ -1,0 +1,90 @@
+package Config_DataBase;
+import java.util.List;
+import java.util.ArrayList;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+
+public class Relation {
+	private String nom;
+	private int nbCol;
+	private List<String> colonnes;
+	private List <String> nomColonnes;
+	private int tmax;
+	
+	public Relation(String nom, int nbCol,List<String> colonnes,List<String> nomColonnes,int tmax) {
+		this.nom=nom;
+		this.nbCol=nbCol;
+		this.colonnes=colonnes;
+		this.nomColonnes=nomColonnes;
+		this.tmax=tmax;
+	}
+	
+	public Relation(String nom,int tmax) {
+		this(nom,0,new ArrayList<String>(),new ArrayList<String>(),tmax);
+	}
+	
+	public void addColonne(String nom,String type) {
+		colonnes.add(type);
+		nomColonnes.add(nom);
+		nbCol++;
+	}
+	
+	public void removeColonne(String nom) {
+		boolean found=false;
+		for(int i=0;i<nomColonnes.size()&&!found;i++) {
+			if(nom.equals(nomColonnes.get(i))) {
+				colonnes.remove(i);
+				nomColonnes.remove(i);
+				nbCol--;
+			}
+		}
+		if(!found) {
+			System.out.println("ERREUR, VOUS VOULEZ SUPPRIMER UNE COLONNE INEXISTANTE");
+		}
+	}
+	
+	public void writeRecordToBuffer(Record record, ByteBuffer buff, int pos) {
+		buff.position(pos);
+		for(int i=0;i<this.nomColonnes.size();i++) {
+			switch(colonnes.get(i)) {
+				case "INT": buff.putInt(Integer.parseInt(record.getValeurs().get(i)));break;
+				case "FLOAT": buff.putFloat(Float.parseFloat(record.getValeurs().get(i)));break;
+				case "CHAR" : byte [] strBytes= record.getValeurs().get(i).getBytes();
+								int max = Math.min(strBytes.length, tmax);
+			                    for (int j = 0; j < max; j++) {
+			                        buff.put(strBytes[j]);
+			                    }
+			                    for (int j = max; j < tmax; j++) {
+			                        buff.put((byte) 0);
+			                    }
+			                    break;
+
+                default:
+                    throw new IllegalArgumentException("Type non supporté: " + colonnes.get(i));
+				}
+				
+		}
+		
+	}
+	
+	public void readFromBuffer(Record rec,ByteBuffer buff,int pos ) {
+		buff.position(pos);
+		
+		for(String c : colonnes) {
+			switch(c) {
+			case "INT" : int val=buff.getInt();rec.addValue(String.valueOf(val));break;
+			case "FLOAT" : float val2=buff.getFloat(); rec.addValue(String.valueOf(val2));break;
+            case "CHAR":
+                byte[] strBytes = new byte[tmax];
+                buff.get(strBytes);
+                String strVal = new String(strBytes, StandardCharsets.UTF_8).trim();
+                rec.addValue(strVal);
+                break;
+
+            default:
+                throw new IllegalArgumentException("Type non supporté : " + c);
+			}
+		}
+		
+	}
+}
