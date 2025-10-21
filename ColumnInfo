@@ -1,0 +1,21 @@
+package Config_DataBase;
+
+public class ColumnInfo {
+    private String nom;
+    private String type; 
+    private int taille; 
+
+    public ColumnInfo(String nom, String type, int taille) {
+        this.nom = nom;
+        this.type = type;
+        this.taille = taille;
+    }
+    
+    public ColumnInfo(String nom, String type) {
+    	this(nom,type,0);
+    }
+
+    public String getNom() { return nom; }
+    public String getType() { return type; }
+    public int getTaille() { return taille; }
+}
