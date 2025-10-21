@@ -1,90 +1,107 @@
 package Config_DataBase;
-import java.util.List;
-import java.util.ArrayList;
-import java.nio.ByteBuffer;
+import java.util.*;
+import java.nio.*;
 import java.nio.charset.StandardCharsets;
 
 public class Relation {
-	private String nom;
-	private int nbCol;
-	private List<String> colonnes;
-	private List <String> nomColonnes;
-	private int tmax;
-	
-	public Relation(String nom, int nbCol,List<String> colonnes,List<String> nomColonnes,int tmax) {
-		this.nom=nom;
-		this.nbCol=nbCol;
-		this.colonnes=colonnes;
-		this.nomColonnes=nomColonnes;
-		this.tmax=tmax;
-	}
-	
-	public Relation(String nom,int tmax) {
-		this(nom,0,new ArrayList<String>(),new ArrayList<String>(),tmax);
-	}
-	
-	public void addColonne(String nom,String type) {
-		colonnes.add(type);
-		nomColonnes.add(nom);
-		nbCol++;
-	}
-	
-	public void removeColonne(String nom) {
-		boolean found=false;
-		for(int i=0;i<nomColonnes.size()&&!found;i++) {
-			if(nom.equals(nomColonnes.get(i))) {
-				colonnes.remove(i);
-				nomColonnes.remove(i);
-				nbCol--;
-			}
-		}
-		if(!found) {
-			System.out.println("ERREUR, VOUS VOULEZ SUPPRIMER UNE COLONNE INEXISTANTE");
-		}
-	}
-	
-	public void writeRecordToBuffer(Record record, ByteBuffer buff, int pos) {
-		buff.position(pos);
-		for(int i=0;i<this.nomColonnes.size();i++) {
-			switch(colonnes.get(i)) {
-				case "INT": buff.putInt(Integer.parseInt(record.getValeurs().get(i)));break;
-				case "FLOAT": buff.putFloat(Float.parseFloat(record.getValeurs().get(i)));break;
-				case "CHAR" : byte [] strBytes= record.getValeurs().get(i).getBytes();
-								int max = Math.min(strBytes.length, tmax);
-			                    for (int j = 0; j < max; j++) {
-			                        buff.put(strBytes[j]);
-			                    }
-			                    for (int j = max; j < tmax; j++) {
-			                        buff.put((byte) 0);
-			                    }
-			                    break;
+    private String nom;
+    private int nbCol;
+    private List<ColumnInfo> colonnes;
+
+    public Relation(String nom) {
+        this.nom = nom;
+        this.nbCol = 0;
+        this.colonnes = new ArrayList<>();
+    }
+
+    public void addColonne(String nom, String type, int taille) {
+        colonnes.add(new ColumnInfo(nom, type, taille));
+        nbCol++;
+    }
+
+    public void removeColonne(String nom) {
+        boolean found = false;
+        Iterator<ColumnInfo> it = colonnes.iterator();
+        while (it.hasNext()&&!found) {
+            ColumnInfo c = it.next();
+            if (c.getNom().equals(nom)) {
+                it.remove();
+                nbCol--;
+                found=true;
+
+            }
+        }
+        if (!found)
+            System.out.println("ERREUR : colonne inexistante");
+    }
+
+    public void writeRecordToBuffer(Record record, ByteBuffer buff, int pos) {
+        buff.position(pos);
+        for (int i = 0; i < nbCol; i++) {
+            ColumnInfo col = colonnes.get(i);
+            String value = record.getValeurs().get(i);
+
+            switch (col.getType()) {
+                case "INT":
+                    buff.putInt(Integer.parseInt(value));
+                    break;
+
+                case "FLOAT":
+                    buff.putFloat(Float.parseFloat(value));
+                    break;
+
+                case "CHAR":
+                    byte[] strBytes = value.getBytes(StandardCharsets.UTF_8);
+                    int len = Math.min(strBytes.length, col.getTaille());
+                    buff.put(strBytes, 0, len);
+                    for (int j = len; j < col.getTaille(); j++)
+                        buff.put((byte) 0); //Padding
+                    break;
+
+                case "VARCHAR":
+                    byte[] varBytes = value.getBytes(StandardCharsets.UTF_8);
+                    int length = Math.min(varBytes.length, col.getTaille());
+                    buff.putInt(length); // longueur réelle
+                    buff.put(varBytes, 0, length);
+                    for (int j = length; j < col.getTaille(); j++)
+                        buff.put((byte) 0); // padding facultatif
+                    break;
 
                 default:
-                    throw new IllegalArgumentException("Type non supporté: " + colonnes.get(i));
-				}
-				
-		}
-		
-	}
-	
-	public void readFromBuffer(Record rec,ByteBuffer buff,int pos ) {
-		buff.position(pos);
-		
-		for(String c : colonnes) {
-			switch(c) {
-			case "INT" : int val=buff.getInt();rec.addValue(String.valueOf(val));break;
-			case "FLOAT" : float val2=buff.getFloat(); rec.addValue(String.valueOf(val2));break;
-            case "CHAR":
-                byte[] strBytes = new byte[tmax];
-                buff.get(strBytes);
-                String strVal = new String(strBytes, StandardCharsets.UTF_8).trim();
-                rec.addValue(strVal);
-                break;
+                    throw new IllegalArgumentException("Type non supporté : " + col.getType());
+            }
+        }
+    }
 
-            default:
-                throw new IllegalArgumentException("Type non supporté : " + c);
-			}
-		}
-		
-	}
+    public void readFromBuffer(Record record, ByteBuffer buff, int pos) {
+        buff.position(pos);
+        for (ColumnInfo col : colonnes) {
+            switch (col.getType()) {
+                case "INT":
+                    record.addValue(String.valueOf(buff.getInt()));
+                    break;
+
+                case "FLOAT":
+                    record.addValue(String.valueOf(buff.getFloat()));
+                    break;
+
+                case "CHAR":
+                    byte[] charBytes = new byte[col.getTaille()];
+                    buff.get(charBytes);
+                    record.addValue(new String(charBytes, StandardCharsets.UTF_8).trim());
+                    break;
+
+                case "VARCHAR":
+                    int length = buff.getInt();
+                    byte[] varBytes = new byte[col.getTaille()];
+                    buff.get(varBytes);
+                    record.addValue(new String(varBytes, 0, length, StandardCharsets.UTF_8));
+                    break;
+
+                default:
+                    throw new IllegalArgumentException("Type non supporté : " + col.getType());
+            }
+        }
+    }
 }
+
