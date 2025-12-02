@@ -81,7 +81,7 @@ package Config_DataBase;
 	       try{
 	           RandomAccessFile raf = new RandomAccessFile(f,"r");
 	           raf.seek(pageId.getPageIdx()*(long) dbConfig.getPageSize());
-	           raf.read(buffer);
+	           raf.readFully(buffer);
 	           raf.close();
 
 
