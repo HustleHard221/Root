@@ -35,7 +35,7 @@ public class DbConfig {
                    pagesize = Integer.parseInt(line.split("=")[1].trim());
                } else if (line.startsWith("dm_maxfilecount=")) {
                    dm_maxfilecount = Integer.parseInt(line.split("=")[1].trim());
-               }else if(line.startsWith("bm_buffercount")) {
+               }else if(line.startsWith("bm_buffercount=")) {
             	   bm_buffercount = Integer.parseInt(line.split("=")[1].trim());
                }else if(line.startsWith("bm_policy")) {
             	   bm_bufferpolicy=line.split("=")[1].trim();
